@@ -1,0 +1,239 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile document stored in Firestore for Primble BD LTD wallet members.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "maxLength": 150 },
+        "ph": { "type": "string", "maxLength": 30 },
+        "role": { "type": "string", "enum": ["STAFF", "GENERAL_CUSTOMER", "VIP_CUSTOMER", "ADMIN"] },
+        "acc": { "type": "string", "maxLength": 20 },
+        "dob": { "type": "string", "maxLength": 20 },
+        "gender": { "type": "string", "maxLength": 20 },
+        "town": { "type": "string", "maxLength": 60 },
+        "job": { "type": "string", "maxLength": 60 },
+        "addr": { "type": "string", "maxLength": 300 },
+        "notif": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "role", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted super-admin or staff-admin membership and granular tab permissions.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 150 },
+        "name": { "type": "string", "maxLength": 100 },
+        "isSuperAdmin": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "perms": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Global company branding, auto-approval, and YouTube video banner settings.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "logo": { "type": "string", "maxLength": 450000 },
+        "auto": { "type": "number" },
+        "ytUrl": { "type": "string", "maxLength": 300 },
+        "ytTitle": { "type": "string", "maxLength": 100 },
+        "ytOn": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "auto", "updatedAt"]
+    },
+    "Banner": {
+      "title": "Banner",
+      "description": "Mobile app promotional image banner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "src": { "type": "string", "minLength": 1, "maxLength": 600000 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "src", "active", "createdAt"]
+    },
+    "Partner": {
+      "title": "Partner",
+      "description": "Bank or MFS payment partner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["MFS", "BANK"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "logo": { "type": "string", "maxLength": 350000 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "name", "active", "createdAt"]
+    },
+    "WalletAccount": {
+      "title": "WalletAccount",
+      "description": "Private wallet account, KYC status, security PIN hash, and live balance.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "admin": { "type": "number" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "ph": { "type": "string", "maxLength": 30 },
+        "role": { "type": "string", "enum": ["STAFF", "GENERAL_CUSTOMER", "VIP_CUSTOMER", "ADMIN"] },
+        "kyc": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "frozen": { "type": "boolean" },
+        "bal": { "type": "number" },
+        "acc": { "type": "string", "maxLength": 20 },
+        "doc": { "type": "string", "maxLength": 60 },
+        "dt": { "type": "string", "maxLength": 10 },
+        "sp": { "type": "string", "maxLength": 128 },
+        "photo": { "type": "string", "maxLength": 350000 },
+        "dob": { "type": "string", "maxLength": 20 },
+        "gender": { "type": "string", "maxLength": 20 },
+        "town": { "type": "string", "maxLength": 60 },
+        "job": { "type": "string", "maxLength": 60 },
+        "addr": { "type": "string", "maxLength": 300 },
+        "notif": { "type": "array" },
+        "perms": { "type": "array" },
+        "time": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "role", "kyc", "bal", "createdAt", "updatedAt"]
+    },
+    "AccountDirectory": {
+      "title": "AccountDirectory",
+      "description": "Publicly queryable (by exact 13-digit account number via get) recipient lookup card without PII.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "acc": { "type": "string", "minLength": 13, "maxLength": 20 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "kyc": { "type": "string", "enum": ["PENDING", "APPROVED", "REJECTED"] },
+        "frozen": { "type": "boolean" },
+        "photo": { "type": "string", "maxLength": 350000 }
+      },
+      "required": ["uid", "acc", "name", "kyc", "frozen"]
+    },
+    "KycDocs": {
+      "title": "KycDocs",
+      "description": "Isolated KYC document images (NID/BC & live selfie).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "dt": { "type": "string", "maxLength": 10 },
+        "docImg": { "type": "string", "maxLength": 400000 },
+        "docImg2": { "type": "string", "maxLength": 400000 },
+        "selfie": { "type": "string", "maxLength": 300000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Immutable financial transaction ledger entry.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "amt": { "type": "number" },
+        "note": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "time": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "amt", "note", "time", "createdAt"]
+    },
+    "WalletRequest": {
+      "title": "WalletRequest",
+      "description": "Add Money or Withdrawal request awaiting admin approval.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "enum": ["ADD", "MFS", "BANK"] },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "op": { "type": "string", "maxLength": 80 },
+        "ext": { "type": "string", "maxLength": 80 },
+        "name": { "type": "string", "maxLength": 100 },
+        "trx": { "type": "string", "maxLength": 80 },
+        "amt": { "type": "number" },
+        "st": { "type": "string", "enum": ["PENDING", "APPROVED", "DEBITED", "REJECTED"] },
+        "time": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "uid", "op", "ext", "amt", "st", "time", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "User SMS Inbox notification message.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderUid": { "type": "string", "maxLength": 128 },
+        "t": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "b": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "read": { "type": "number" },
+        "time": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "uid", "t", "b", "read", "time", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile sync records."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Admin role directory."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AppSettings" },
+      "description": "Company settings, logo, auto-approve, and YouTube banner."
+    },
+    "/banners/{bannerId}": {
+      "schema": { "$ref": "#/entities/Banner" },
+      "description": "Promotional mobile app banners."
+    },
+    "/partners/{partnerId}": {
+      "schema": { "$ref": "#/entities/Partner" },
+      "description": "MFS and Bank partners."
+    },
+    "/accounts/{userId}": {
+      "schema": { "$ref": "#/entities/WalletAccount" },
+      "description": "Private wallet account and balance."
+    },
+    "/accountDirectory/{accNumber}": {
+      "schema": { "$ref": "#/entities/AccountDirectory" },
+      "description": "Exact account-number lookup without PII."
+    },
+    "/kycDocs/{userId}": {
+      "schema": { "$ref": "#/entities/KycDocs" },
+      "description": "Isolated KYC document photos."
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Wallet transactions ledger."
+    },
+    "/requests/{reqId}": {
+      "schema": { "$ref": "#/entities/WalletRequest" },
+      "description": "Add Money and Withdrawal requests."
+    },
+    "/messages/{msgId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "SMS Inbox notifications."
+    }
+  }
+}

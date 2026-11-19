@@ -1,0 +1,587 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function adminDocPath() {
+      return /databases/$(database)/documents/admins/$(request.auth.uid);
+    }
+
+    function isSuperAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'office.primble@gmail.com'
+        || (
+          exists(adminDocPath())
+          && get(adminDocPath()).data.isSuperAdmin == true
+          && (!('active' in get(adminDocPath()).data) || get(adminDocPath()).data.active == true)
+        )
+      );
+    }
+
+    function isActiveAdmin() {
+      return isSuperAdmin() || (
+        isVerifiedUser()
+        && exists(adminDocPath())
+        && (!('active' in get(adminDocPath()).data) || get(adminDocPath()).data.active == true)
+      );
+    }
+
+    function hasPerm(perm) {
+      return isSuperAdmin() || (
+        isVerifiedUser()
+        && exists(adminDocPath())
+        && (!('active' in get(adminDocPath()).data) || get(adminDocPath()).data.active == true)
+        && ('perms' in get(adminDocPath()).data)
+        && get(adminDocPath()).data.perms is list
+        && perm in get(adminDocPath()).data.perms
+      );
+    }
+
+    function isNum(v) {
+      return v is int || v is float;
+    }
+
+    // Validation Blueprint: UserProfile
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'name', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'name', 'email', 'ph', 'role', 'acc',
+          'dob', 'gender', 'town', 'job', 'addr', 'notif',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.role is string && data.role in ['STAFF', 'GENERAL_CUSTOMER', 'VIP_CUSTOMER', 'ADMIN']
+        && (!('email' in data) || (data.email is string && data.email.size() <= 150))
+        && (!('ph' in data) || (data.ph is string && data.ph.size() <= 30))
+        && (!('acc' in data) || (data.acc is string && data.acc.size() <= 20))
+        && (!('dob' in data) || (data.dob is string && data.dob.size() <= 20))
+        && (!('gender' in data) || (data.gender is string && data.gender.size() <= 20))
+        && (!('town' in data) || (data.town is string && data.town.size() <= 60))
+        && (!('job' in data) || (data.job is string && data.job.size() <= 60))
+        && (!('addr' in data) || (data.addr is string && data.addr.size() <= 300))
+        && (!('notif' in data) || (
+          data.notif is list
+          && data.notif.size() <= 10
+          && (data.notif.size() == 0 || data.notif[0] is string)
+        ))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: AdminRecord
+    function isValidAdminRecord(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt'])
+        && data.keys().hasOnly([
+          'uid', 'email', 'name', 'isSuperAdmin', 'active', 'perms', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && (!('name' in data) || (data.name is string && data.name.size() <= 100))
+        && (!('isSuperAdmin' in data) || data.isSuperAdmin is bool)
+        && (!('active' in data) || data.active is bool)
+        && (!('perms' in data) || (
+          data.perms is list
+          && data.perms.size() <= 20
+          && (data.perms.size() == 0 || data.perms[0] is string)
+        ))
+        && data.createdAt is timestamp
+        && (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // Validation Blueprint: AppSettings
+    function isValidAppSettings(data) {
+      return data.keys().hasAll(['name', 'auto', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'logo', 'auto', 'ytUrl', 'ytTitle', 'ytOn', 'updatedAt'])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && isNum(data.auto) && (data.auto == 0 || data.auto == 1)
+        && (!('logo' in data) || (data.logo is string && data.logo.size() <= 450000))
+        && (!('ytUrl' in data) || (data.ytUrl is string && data.ytUrl.size() <= 300))
+        && (!('ytTitle' in data) || (data.ytTitle is string && data.ytTitle.size() <= 100))
+        && (!('ytOn' in data) || (isNum(data.ytOn) && (data.ytOn == 0 || data.ytOn == 1)))
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: Banner
+    function isValidBanner(data, bannerId) {
+      return data.keys().hasAll(['id', 'src', 'active', 'createdAt'])
+        && data.keys().hasOnly(['id', 'src', 'active', 'createdAt'])
+        && isValidId(data.id) && data.id == bannerId
+        && data.src is string && data.src.size() >= 1 && data.src.size() <= 600000
+        && data.active is bool
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: Partner
+    function isValidPartner(data, partnerId) {
+      return data.keys().hasAll(['id', 'type', 'name', 'active', 'createdAt'])
+        && data.keys().hasOnly(['id', 'type', 'name', 'logo', 'active', 'createdAt'])
+        && isValidId(data.id) && data.id == partnerId
+        && data.type is string && data.type in ['MFS', 'BANK']
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && (!('logo' in data) || (data.logo is string && data.logo.size() <= 350000))
+        && data.active is bool
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: WalletAccount
+    function isValidWalletAccount(data, userId) {
+      return data.keys().hasAll(['uid', 'name', 'role', 'kyc', 'bal', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'uid', 'admin', 'name', 'email', 'ph', 'role', 'kyc', 'frozen', 'bal',
+          'acc', 'doc', 'dt', 'sp', 'photo', 'dob', 'gender', 'town', 'job', 'addr',
+          'notif', 'perms', 'time', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid) && data.uid == userId
+        && (!('admin' in data) || (isNum(data.admin) && (data.admin == 0 || data.admin == 1)))
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && (!('email' in data) || (data.email is string && data.email.size() <= 150))
+        && (!('ph' in data) || (data.ph is string && data.ph.size() <= 30))
+        && data.role is string && data.role in ['STAFF', 'GENERAL_CUSTOMER', 'VIP_CUSTOMER', 'ADMIN']
+        && data.kyc is string && data.kyc in ['PENDING', 'APPROVED', 'REJECTED']
+        && (!('frozen' in data) || data.frozen is bool)
+        && isNum(data.bal) && data.bal >= 0
+        && (!('acc' in data) || (data.acc is string && data.acc.size() <= 20))
+        && (!('doc' in data) || (data.doc is string && data.doc.size() <= 60))
+        && (!('dt' in data) || (data.dt is string && data.dt.size() <= 10))
+        && (!('sp' in data) || (data.sp is string && data.sp.size() <= 128))
+        && (!('photo' in data) || (data.photo is string && data.photo.size() <= 350000))
+        && (!('dob' in data) || (data.dob is string && data.dob.size() <= 20))
+        && (!('gender' in data) || (data.gender is string && data.gender.size() <= 20))
+        && (!('town' in data) || (data.town is string && data.town.size() <= 60))
+        && (!('job' in data) || (data.job is string && data.job.size() <= 60))
+        && (!('addr' in data) || (data.addr is string && data.addr.size() <= 300))
+        && (!('notif' in data) || (
+          data.notif is list
+          && data.notif.size() <= 10
+          && (data.notif.size() == 0 || data.notif[0] is string)
+        ))
+        && (!('perms' in data) || (
+          data.perms is list
+          && data.perms.size() <= 20
+          && (data.perms.size() == 0 || data.perms[0] is string)
+        ))
+        && (!('time' in data) || (data.time is string && data.time.size() <= 40))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: AccountDirectory
+    function isValidAccountDirectory(data, accNumber) {
+      return data.keys().hasAll(['uid', 'acc', 'name', 'kyc', 'frozen'])
+        && data.keys().hasOnly(['uid', 'acc', 'name', 'kyc', 'frozen', 'photo'])
+        && isValidId(data.uid)
+        && data.acc is string && data.acc == accNumber && data.acc.size() >= 10 && data.acc.size() <= 20
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.kyc is string && data.kyc in ['PENDING', 'APPROVED', 'REJECTED']
+        && data.frozen is bool
+        && (!('photo' in data) || (data.photo is string && data.photo.size() <= 350000));
+    }
+
+    // Validation Blueprint: KycDocs
+    function isValidKycDocs(data, userId) {
+      return data.keys().hasAll(['uid', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'dt', 'docImg', 'docImg2', 'selfie', 'createdAt'])
+        && isValidId(data.uid) && data.uid == userId
+        && (!('dt' in data) || (data.dt is string && data.dt.size() <= 10))
+        && (!('docImg' in data) || (data.docImg is string && data.docImg.size() <= 400000))
+        && (!('docImg2' in data) || (data.docImg2 is string && data.docImg2.size() <= 400000))
+        && (!('selfie' in data) || (data.selfie is string && data.selfie.size() <= 300000))
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: Transaction
+    function isValidTransaction(data, txId) {
+      return data.keys().hasAll(['id', 'uid', 'amt', 'note', 'time', 'createdAt'])
+        && data.keys().hasOnly(['id', 'uid', 'senderUid', 'amt', 'note', 'time', 'createdAt'])
+        && isValidId(data.id) && data.id == txId
+        && isValidId(data.uid)
+        && (!('senderUid' in data) || isValidId(data.senderUid))
+        && isNum(data.amt) && data.amt != 0
+        && data.note is string && data.note.size() >= 1 && data.note.size() <= 200
+        && data.time is string && data.time.size() >= 1 && data.time.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: WalletRequest
+    function isValidWalletRequest(data, reqId) {
+      return data.keys().hasAll(['id', 'type', 'uid', 'op', 'ext', 'amt', 'st', 'time', 'createdAt'])
+        && data.keys().hasOnly(['id', 'type', 'uid', 'op', 'ext', 'name', 'trx', 'amt', 'st', 'time', 'createdAt'])
+        && isValidId(data.id) && data.id == reqId
+        && data.type is string && data.type in ['ADD', 'MFS', 'BANK']
+        && isValidId(data.uid)
+        && data.op is string && data.op.size() >= 1 && data.op.size() <= 80
+        && data.ext is string && data.ext.size() >= 1 && data.ext.size() <= 80
+        && (!('name' in data) || (data.name is string && data.name.size() <= 100))
+        && (!('trx' in data) || (data.trx is string && data.trx.size() <= 80))
+        && isNum(data.amt) && data.amt > 0
+        && data.st is string && data.st in ['PENDING', 'APPROVED', 'DEBITED', 'REJECTED']
+        && data.time is string && data.time.size() >= 1 && data.time.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    // Validation Blueprint: Message
+    function isValidMessage(data, msgId) {
+      return data.keys().hasAll(['id', 'uid', 't', 'b', 'read', 'time', 'createdAt'])
+        && data.keys().hasOnly(['id', 'uid', 'senderUid', 't', 'b', 'read', 'time', 'createdAt'])
+        && isValidId(data.id) && data.id == msgId
+        && isValidId(data.uid)
+        && (!('senderUid' in data) || isValidId(data.senderUid))
+        && data.t is string && data.t.size() >= 1 && data.t.size() <= 120
+        && data.b is string && data.b.size() >= 1 && data.b.size() <= 500
+        && isNum(data.read) && (data.read == 0 || data.read == 1)
+        && data.time is string && data.time.size() >= 1 && data.time.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    // 1. User Profiles
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isActiveAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && (isOwner(userId) || isSuperAdmin())
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (incoming().role != 'ADMIN' || isSuperAdmin());
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isSuperAdmin() || (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'email', 'ph', 'acc', 'dob', 'gender',
+              'town', 'job', 'addr', 'notif', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isValidId(userId) && isSuperAdmin();
+    }
+
+    // 2. Admin & Staff RBAC Directory
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isSuperAdmin());
+      allow list: if isSuperAdmin();
+
+      allow create: if isSuperAdmin()
+        && isValidId(userId)
+        && isValidAdminRecord(incoming(), userId)
+        && incoming().createdAt == request.time
+        && (!('updatedAt' in incoming()) || incoming().updatedAt == request.time);
+
+      allow update: if isSuperAdmin()
+        && isValidId(userId)
+        && isValidAdminRecord(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && (!('updatedAt' in incoming()) || incoming().updatedAt == request.time)
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'email', 'name', 'isSuperAdmin', 'active', 'perms', 'updatedAt'
+        ]);
+
+      allow delete: if isSuperAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+
+    // 3. Global Settings (/settings/app - public non-PII branding)
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId) && (settingId == 'app' || isSignedIn());
+      allow list: if false;
+      allow create: if isSuperAdmin()
+        && isValidId(settingId)
+        && isValidAppSettings(incoming())
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(settingId)
+        && isValidAppSettings(incoming())
+        && incoming().updatedAt == request.time
+        && (
+          hasPerm('brand') || (
+            hasPerm('ban')
+            && incoming().name == existing().name
+            && incoming().auto == existing().auto
+            && (!('logo' in existing()) ? (!('logo' in incoming()) || incoming().logo == '') : ('logo' in incoming() && incoming().logo == existing().logo))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['ytUrl', 'ytTitle', 'ytOn', 'updatedAt'])
+          )
+        );
+      allow delete: if isSuperAdmin() && isValidId(settingId);
+    }
+
+    // 4. Promotional Banners (public active promos)
+    match /banners/{bannerId} {
+      allow get: if isValidId(bannerId) && resource.data.active == true;
+      allow list: if resource.data.active == true;
+      allow create: if hasPerm('ban')
+        && isValidId(bannerId)
+        && isValidBanner(incoming(), bannerId)
+        && incoming().createdAt == request.time;
+      allow update: if hasPerm('ban')
+        && isValidId(bannerId)
+        && isValidBanner(incoming(), bannerId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if hasPerm('ban') && isValidId(bannerId);
+    }
+
+    // 5. Payment Partners (public active partners marquee)
+    match /partners/{partnerId} {
+      allow get: if isValidId(partnerId) && resource.data.active == true;
+      allow list: if resource.data.active == true;
+      allow create: if hasPerm('part')
+        && isValidId(partnerId)
+        && isValidPartner(incoming(), partnerId)
+        && incoming().createdAt == request.time;
+      allow update: if hasPerm('part')
+        && isValidId(partnerId)
+        && isValidPartner(incoming(), partnerId)
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if hasPerm('part') && isValidId(partnerId);
+    }
+
+    // 6. Wallet Accounts (Private + Atomic Send Money Transfer Guard)
+    match /accounts/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isActiveAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && (isOwner(userId) || isSuperAdmin())
+        && isValidWalletAccount(incoming(), userId)
+        && incoming().bal == 0
+        && (!('frozen' in incoming()) || incoming().frozen == false)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isSuperAdmin() || (
+          isOwner(userId)
+          && (!('admin' in incoming()) || incoming().admin == 0)
+          && !('perms' in incoming())
+          && incoming().role != 'ADMIN'
+          && (
+            incoming().kyc == 'PENDING' || (
+              incoming().kyc == 'APPROVED'
+              && exists(/databases/$(database)/documents/settings/app)
+              && get(/databases/$(database)/documents/settings/app).data.auto == 1
+            )
+          )
+        ));
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidWalletAccount(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Tier 1: Super Admin full state management
+          isSuperAdmin()
+          // Tier 2: Owner updating non-financial profile/PIN/photo fields
+          || (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().kyc == existing().kyc
+            && incoming().bal == existing().bal
+            && (!('acc' in existing()) ? !('acc' in incoming()) : ('acc' in incoming() && incoming().acc == existing().acc))
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'email', 'ph', 'dob', 'gender', 'town', 'job',
+              'addr', 'notif', 'sp', 'photo', 'updatedAt'
+            ])
+          )
+          // Tier 3: Owner debiting own balance during Send Money
+          || (
+            isOwner(userId)
+            && existing().kyc == 'APPROVED'
+            && (!('frozen' in existing()) || existing().frozen != true)
+            && incoming().bal >= 0
+            && incoming().bal < existing().bal
+            && incoming().diff(existing()).affectedKeys().hasOnly(['bal', 'updatedAt'])
+          )
+          // Tier 4: Atomic Send Money credit to another approved, unfrozen user
+          || (
+            !isOwner(userId)
+            && existing().kyc == 'APPROVED'
+            && (!('frozen' in existing()) || existing().frozen != true)
+            && incoming().bal > existing().bal
+            && incoming().diff(existing()).affectedKeys().hasOnly(['bal', 'updatedAt'])
+            && exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
+            && get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.kyc == 'APPROVED'
+            && (!('frozen' in get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data) || get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.frozen != true)
+            && getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.bal >= 0
+            && getAfter(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.bal == get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data.bal - (incoming().bal - existing().bal)
+          )
+          // Tier 5: Staff with 'kyc' permission approving/rejecting non-admin KYC
+          || (
+            hasPerm('kyc')
+            && (!('admin' in existing()) || existing().admin != 1)
+            && incoming().bal == existing().bal
+            && incoming().diff(existing()).affectedKeys().hasOnly(['kyc', 'acc', 'updatedAt'])
+          )
+          // Tier 6: Staff with 'users' permission freezing/unfreezing non-admin users
+          || (
+            hasPerm('users')
+            && (!('admin' in existing()) || existing().admin != 1)
+            && incoming().bal == existing().bal
+            && incoming().diff(existing()).affectedKeys().hasOnly(['frozen', 'updatedAt'])
+          )
+          // Tier 7: Staff with 'add', 'wd', or 'pay' permission updating non-admin wallet balance
+          || (
+            (hasPerm('add') || hasPerm('wd') || hasPerm('pay'))
+            && (!('admin' in existing()) || existing().admin != 1)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['bal', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSuperAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+
+    // 7. Account Directory (single-doc lookup by 13-digit account number, no list)
+    match /accountDirectory/{accNumber} {
+      allow get: if isVerifiedUser() && isValidId(accNumber);
+      allow list: if false;
+
+      allow create, update: if isVerifiedUser()
+        && isValidId(accNumber)
+        && isValidAccountDirectory(incoming(), accNumber)
+        && (isSuperAdmin() || hasPerm('kyc') || hasPerm('users') || incoming().uid == request.auth.uid);
+
+      allow delete: if isSuperAdmin() && isValidId(accNumber);
+    }
+
+    // 8. KYC Documents (isolated from public/account docs)
+    match /kycDocs/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || hasPerm('kyc') || hasPerm('users') || hasPerm('bk'));
+      allow list: if isActiveAdmin();
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidKycDocs(incoming(), userId)
+        && incoming().createdAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidKycDocs(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && (isOwner(userId) || isSuperAdmin());
+
+      allow delete: if isSuperAdmin() && isValidId(userId);
+    }
+
+    // 9. Transactions Ledger
+    match /transactions/{txId} {
+      allow get: if isValidId(txId) && isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(txId)
+        && isValidTransaction(incoming(), txId)
+        && incoming().createdAt == request.time
+        && (
+          hasPerm('add') || hasPerm('wd') || hasPerm('pay')
+          || incoming().uid == request.auth.uid
+          || (('senderUid' in incoming()) && incoming().senderUid == request.auth.uid)
+        );
+
+      allow update, delete: if isSuperAdmin() && isValidId(txId);
+    }
+
+    // 10. Add Money & Withdrawal Requests
+    match /requests/{reqId} {
+      allow get: if isValidId(reqId) && isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(reqId)
+        && isValidWalletRequest(incoming(), reqId)
+        && incoming().uid == request.auth.uid
+        && incoming().st == 'PENDING'
+        && incoming().createdAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(reqId)
+        && isValidWalletRequest(incoming(), reqId)
+        && incoming().id == existing().id
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && existing().st == 'PENDING'
+        && incoming().diff(existing()).affectedKeys().hasOnly(['st'])
+        && (
+          isSuperAdmin()
+          || (hasPerm('add') && existing().type == 'ADD')
+          || (hasPerm('wd') && (existing().type == 'MFS' || existing().type == 'BANK'))
+        );
+
+      allow delete: if isSuperAdmin() && isValidId(reqId);
+    }
+
+    // 11. SMS Inbox Messages
+    match /messages/{msgId} {
+      allow get: if isValidId(msgId) && isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isActiveAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(msgId)
+        && isValidMessage(incoming(), msgId)
+        && incoming().createdAt == request.time
+        && (
+          hasPerm('sms') || hasPerm('kyc') || hasPerm('add') || hasPerm('wd') || hasPerm('pay')
+          || incoming().uid == request.auth.uid
+          || (('senderUid' in incoming()) && incoming().senderUid == request.auth.uid)
+        );
+
+      allow update: if isVerifiedUser()
+        && isValidId(msgId)
+        && isValidMessage(incoming(), msgId)
+        && incoming().id == existing().id
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && (
+          isSuperAdmin() || (
+            resource.data.uid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['read'])
+          )
+        );
+
+      allow delete: if isSuperAdmin() && isValidId(msgId);
+    }
+  }
+}

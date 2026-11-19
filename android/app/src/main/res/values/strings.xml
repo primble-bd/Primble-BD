@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Primble BD LTD</string>
+    <string name="title_activity_main">Primble BD LTD</string>
+    <string name="package_name">com.primblebd.app</string>
+    <string name="custom_url_scheme">com.primblebd.app</string>
+</resources>

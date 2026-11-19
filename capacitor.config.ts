@@ -1,0 +1,24 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.primblebd.app',
+  appName: 'Primble BD LTD',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https',
+    allowNavigation: [
+      '*.firebaseapp.com',
+      '*.googleapis.com',
+      '*.gstatic.com',
+      '*.youtube.com',
+      '*.youtube-nocookie.com',
+    ],
+  },
+  android: {
+    allowMixedContent: false,
+    captureInput: true,
+    webContentsDebuggingEnabled: false,
+  },
+};
+
+export default config;
